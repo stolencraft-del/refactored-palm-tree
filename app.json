@@ -7,7 +7,7 @@
         "video-extract",
         "pyrogram"
     ],
-    "repository": "https://github.com/nikhilsainiop/saini-txt-direct",
+    "repository": "https://github.com/stolencraft-del/refactored-palm-tree",
     "success_url": "https://graph.org/file/6307bea2182f82424bf90-e2f24f59f49a97b6c8.jpg",
     "stack": "container",
     "env": {

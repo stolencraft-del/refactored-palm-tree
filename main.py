@@ -1077,6 +1077,12 @@ async def text_handler(bot: Client, m: Message):
                         text = await resp.text()
                         url = re.search(r"(https://.*?playlist.m3u8.*?)\"", text).group(1)
 
+             # Handle Spayee links
+            elif "qcdn.spayee.in" in url or "spayee.in" in url:
+                # Spayee links are m3u8 streams, no special modification needed
+                # The URL can be used directly with yt-dlp
+                pass
+
             if "acecwply" in url:
                 cmd = f'yt-dlp -o "{name}.%(ext)s" -f "bestvideo[height<={raw_text2}]+bestaudio" --hls-prefer-ffmpeg --no-keep-video --remux-video mkv --no-warning "{url}"'
 

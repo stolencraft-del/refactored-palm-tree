@@ -11,6 +11,7 @@ import requests
 import tgcrypto
 import subprocess
 import concurrent.futures
+from split_handler import split_video
 from math import ceil
 from utils import progress_bar
 from pyrogram import Client, filters

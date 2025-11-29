@@ -11,6 +11,7 @@ import requests
 import tgcrypto
 import subprocess
 import concurrent.futures
+from split_handler import split_video, generate_thumbnail
 from math import ceil
 from utils import progress_bar
 from pyrogram import Client, filters
@@ -292,28 +293,125 @@ async def download_and_decrypt_video(url, cmd, name, key):
             print(f"Failed to decrypt {video_path}.")  
             return None  
 
-async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, channel_id):
-    subprocess.run(f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 "{filename}.jpg"', shell=True)
-    await prog.delete (True)
-    reply1 = await bot.send_message(channel_id, f"**📩 Uploading Video 📩:-**\n<blockquote>**{name}**</blockquote>")
-    reply = await m.reply_text(f"**Generate Thumbnail:**\n<blockquote>**{name}**</blockquote>")
+async def send_vid(bot, m, cc, filename, thumb, name, prog, channel_id):
+    """
+    Send video with automatic split support and thumbnail handling
+    """
+    
+    # ========== CONFIGURATION (EDIT HERE) ==========
+    SHOW_PART_NUMBERS = True   # Change to False to hide "Part 1/3"
+    MAX_FILE_SIZE_GB = 1.9     # Split files larger than 1.9GB (DON'T CHANGE)
+    SPLIT_SIZE_GB = 1.9        # Each part ~1.9GB (DON'T CHANGE)
+    # ===============================================
+    
     try:
-        if thumb == "/d":
-            thumbnail = f"{filename}.jpg"
+        # Check if file exists
+        if not os.path.exists(filename):
+            logging.error(f"❌ File not found: {filename}")
+            return
+        
+        # Get file size
+        file_size = os.path.getsize(filename)
+        file_size_gb = file_size / (1024**3)
+        max_size_bytes = MAX_FILE_SIZE_GB * 1024 * 1024 * 1024
+        
+        logging.info(f"📊 File size: {file_size_gb:.2f}GB")
+        
+        # Generate or use provided thumbnail
+        thumbnail_path = await generate_thumbnail(filename, thumb)
+        
+        # Check if splitting is needed
+        if file_size > max_size_bytes:
+            logging.info(f"⚠ File exceeds {MAX_FILE_SIZE_GB}GB, splitting into {SPLIT_SIZE_GB}GB parts")
+            
+            # Split the video
+            split_files = await split_video(filename, max_size_gb=SPLIT_SIZE_GB)
+            
+            if len(split_files) == 1 and split_files[0] == filename:
+                logging.error("❌ Split failed, cannot send file over 2GB")
+                await bot.send_message(
+                    channel_id,
+                    f"❌ **Upload Failed**\n\n"
+                    f"**File:** `{name}`\n"
+                    f"**Size:** `{file_size_gb:.2f}GB`\n"
+                    f"**Reason:** File too large and split failed"
+                )
+                os.remove(filename)
+                return
+            
+            # Send each part
+            for idx, part_file in enumerate(split_files, 1):
+                try:
+                    # Keep original caption format, just add part number at end
+                    if SHOW_PART_NUMBERS and len(split_files) > 1:
+                        part_cc = f"{cc}\n\n📦 **Part {idx}/{len(split_files)}**"
+                    else:
+                        part_cc = cc
+                    
+                    # Get part size
+                    part_size = os.path.getsize(part_file) / (1024**3)
+                    
+                    # Safety check
+                    if part_size > 2.0:
+                        logging.error(f"❌ Part {idx} is {part_size:.2f}GB - exceeds limit!")
+                        await bot.send_message(
+                            channel_id,
+                            f"❌ **Part {idx}/{len(split_files)} Failed**\n"
+                            f"**Size:** `{part_size:.2f}GB` (over 2GB limit)"
+                        )
+                        os.remove(part_file)
+                        continue
+                    
+                    logging.info(f"📤 Uploading part {idx}/{len(split_files)}: {part_size:.2f}GB")
+                    
+                    # Send video (keeps original caption format)
+                    await bot.send_video(
+                        chat_id=channel_id,
+                        video=part_file,
+                        caption=part_cc,
+                        thumb=thumbnail_path,
+                        duration=0,
+                        supports_streaming=True
+                    )
+                    
+                    logging.info(f"✓ Sent part {idx}/{len(split_files)}")
+                    os.remove(part_file)
+                    
+                except Exception as e:
+                    logging.error(f"❌ Error sending part {idx}: {str(e)}")
+                    if os.path.exists(part_file):
+                        os.remove(part_file)
+                    await bot.send_message(
+                        channel_id,
+                        f"❌ **Part {idx}/{len(split_files)} Failed**\n`{str(e)}`"
+                    )
+            
+            # Clean up thumbnail
+            if thumbnail_path and thumbnail_path != thumb and os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                    
         else:
-            thumbnail = thumb
+            # File under limit, send normally with ORIGINAL caption
+            logging.info(f"✓ File is {file_size_gb:.2f}GB, sending without split")
+            
+            await bot.send_video(
+                chat_id=channel_id,
+                video=filename,
+                caption=cc,  # Original caption unchanged
+                thumb=thumbnail_path,
+                duration=0,
+                supports_streaming=True
+            )
+            
+            logging.info(f"✓ Successfully sent: {filename}")
+            os.remove(filename)
+            
+            # Clean up thumbnail
+            if thumbnail_path and thumbnail_path != thumb and os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
             
     except Exception as e:
-        await m.reply_text(str(e))
-      
-    dur = int(duration(filename))
-    start_time = time.time()
-
-    try:
-        await bot.send_video(channel_id, filename, caption=cc, supports_streaming=True, height=720, width=1280, thumb=thumbnail, duration=dur, progress=progress_bar, progress_args=(reply, start_time))
-    except Exception:
-        await bot.send_document(channel_id, filename, caption=cc, progress=progress_bar, progress_args=(reply, start_time))
-    os.remove(filename)
-    await reply.delete(True)
-    await reply1.delete(True)
-    os.remove(f"{filename}.jpg")
+        logging.error(f"❌ Error in send_vid: {str(e)}")
+        if os.path.exists(filename):
+            os.remove(filename)
+        raise

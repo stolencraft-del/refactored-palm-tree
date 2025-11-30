@@ -121,7 +121,14 @@ async def remove_auth_user(client: Client, message: Message):
 @bot.on_message(filters.command("cookies") & filters.private)
 async def cookies_handler(client: Client, m: Message):
     await m.reply_text(
-        "Please upload the cookies file (.txt format).",
+        "📁 **Upload Cookies File**\n\n"
+        "Upload cookies (.txt) for YouTube, Zoom & other platforms\n\n"
+        "**How to get cookies:**\n"
+        "1. Install 'Get cookies.txt LOCALLY' extension\n"
+        "2. Login to YouTube AND Zoom in browser\n"
+        "3. Click extension → Export 'All Sites'\n"
+        "4. Upload the .txt file here\n\n"
+        "**File:** `youtube_cookies.txt` (used for all platforms)",
         quote=True
     )
 
@@ -131,7 +138,7 @@ async def cookies_handler(client: Client, m: Message):
 
         # Validate the uploaded file
         if not input_message.document or not input_message.document.file_name.endswith(".txt"):
-            await m.reply_text("Invalid file type. Please upload a .txt file.")
+            await m.reply_text("❌ Invalid file type. Please upload a .txt file.")
             return
 
         # Download the cookies file
@@ -141,13 +148,45 @@ async def cookies_handler(client: Client, m: Message):
         with open(downloaded_path, "r") as uploaded_file:
             cookies_content = uploaded_file.read()
 
+        # Check if cookies file has content
+        if len(cookies_content.strip()) < 10:
+            await m.reply_text("❌ Cookies file appears to be empty or invalid.")
+            os.remove(downloaded_path)
+            return
+
+        # Check for YouTube and Zoom cookies
+        has_youtube = ".youtube.com" in cookies_content or "youtube.com" in cookies_content
+        has_zoom = ".zoom.us" in cookies_content or "zoom.us" in cookies_content
+        
         # Replace the content of the target cookies file
         with open(cookies_file_path, "w") as target_file:
             target_file.write(cookies_content)
 
+        # Count number of cookies
+        cookie_lines = [line for line in cookies_content.split('\n') 
+                       if line.strip() and not line.startswith('#')]
+        
+        platforms = []
+        if has_youtube:
+            platforms.append("✅ YouTube")
+        else:
+            platforms.append("⚠️ YouTube (not found)")
+            
+        if has_zoom:
+            platforms.append("✅ Zoom")
+        else:
+            platforms.append("⚠️ Zoom (not found)")
+        
         await input_message.reply_text(
-            "✅ Cookies updated successfully.\n📂 Saved in `youtube_cookies.txt`."
+            f"✅ **Cookies Updated Successfully**\n\n"
+            f"📂 Saved to: `youtube_cookies.txt`\n"
+            f"🍪 Total cookies: {len(cookie_lines)}\n\n"
+            f"**Detected Platforms:**\n" + "\n".join(platforms) + "\n\n"
+            f"💡 If any platform shows 'not found', login to that site and re-upload cookies."
         )
+        
+        # Clean up downloaded file
+        os.remove(downloaded_path)
 
     except Exception as e:
         await m.reply_text(f"⚠️ An error occurred: {str(e)}")
@@ -867,9 +906,13 @@ async def txt_handler(bot: Client, m: Message):
                 cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
             elif "youtube.com" in url or "youtu.be" in url:
                 cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
+            # ========== ADD ZOOM SUPPORT HERE ==========
+            elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
+                cmd = f'yt-dlp --cookies {cookies_file_path} --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
+            # ========== END ZOOM SUPPORT ==========
             else:
-                cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
-
+               cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'    
+            
 
             try:
                 cc = f'[🎥]Vid Id : {str(count).zfill(3)}\n**Video Title :** `{name1} [{res}p].mkv`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
@@ -1011,10 +1054,41 @@ async def txt_handler(bot: Client, m: Message):
                     time.sleep(1)
                 
             except Exception as e:
-                await bot.send_message(channel_id, f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {url}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>', disable_web_page_preview=True)
+                error_msg = str(e)
+                # Check if it's a Zoom authentication error
+                if "zoom.us" in url and ("401" in error_msg or "403" in error_msg or "authentication" in error_msg.lower()):
+                    await bot.send_message(
+                        channel_id,
+                         f'⚠️**Zoom Download Failed - Authentication Required**⚠️\n\n'
+                         f'**Name** =>> `{str(count).zfill(3)} {name1}`\n'
+                         f'**Url** =>> {url}\n\n'
+                         f'**Reason:** Zoom recording requires cookies\n\n'
+                         f'**How to fix:**\n'
+                         f'1. Login to Zoom in browser\n'
+                         f'2. Export cookies (Get cookies.txt extension)\n'
+                         f'3. Use /cookies command to upload\n'
+                         f'4. Try again',
+                         disable_web_page_preview=True
+                        
+                    )
+
+                else:
+                    await bot.send_message(
+                        channel_id,
+                        f'⚠️**Downloading Failed**⚠️\n'
+                        f'**Name** =>> `{str(count).zfill(3)} {name1}`\n'
+                        f'**Url** =>> {url}\n\n'
+                        f'<blockquote><i><b>Failed Reason: {error_msg}</b></i></blockquote>',
+                        disable_web_page_preview=True
+
+                    )
+
                 count += 1
                 failed_count += 1
-                continue
+                continue    
+
+
+           
 
     except Exception as e:
         await m.reply_text(e)
@@ -1153,6 +1227,10 @@ async def text_handler(bot: Client, m: Message):
                cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
             elif "youtube.com" in url or "youtu.be" in url:
                 cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
+            # ========== ADD ZOOM SUPPORT HERE ==========
+            elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
+                cmd = f'yt-dlp --cookies {cookies_file_path} --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
+            # ========== END ZOOM SUPPORT ==========    
             else:
                 cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
 

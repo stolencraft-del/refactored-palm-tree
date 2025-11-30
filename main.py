@@ -1055,39 +1055,54 @@ async def txt_handler(bot: Client, m: Message):
                 
             except Exception as e:
                 error_msg = str(e)
-                # Check if it's a Zoom authentication error
-                if "zoom.us" in url and ("401" in error_msg or "403" in error_msg or "authentication" in error_msg.lower()):
-                    await bot.send_message(
-                        channel_id,
-                         f'⚠️**Zoom Download Failed - Authentication Required**⚠️\n\n'
-                         f'**Name** =>> `{str(count).zfill(3)} {name1}`\n'
-                         f'**Url** =>> {url}\n\n'
-                         f'**Reason:** Zoom recording requires cookies\n\n'
-                         f'**How to fix:**\n'
-                         f'1. Login to Zoom in browser\n'
-                         f'2. Export cookies (Get cookies.txt extension)\n'
-                         f'3. Use /cookies command to upload\n'
-                         f'4. Try again',
-                         disable_web_page_preview=True
-                        
-                    )
+                logging.error(f"❌ Download failed: {error_msg}")
 
-                else:
-                    await bot.send_message(
-                        channel_id,
-                        f'⚠️**Downloading Failed**⚠️\n'
-                        f'**Name** =>> `{str(count).zfill(3)} {name1}`\n'
-                        f'**Url** =>> {url}\n\n'
-                        f'<blockquote><i><b>Failed Reason: {error_msg}</b></i></blockquote>',
-                        disable_web_page_preview=True
-
-                    )
+                try:
+                    # Zoom-specific errors
+                    if "zoom.us" in url:
+                        if "Unable to extract" in error_msg or "could not convert" in error_msg:
+                            await bot.send_message(
+                                channel_id,
+                                f'⚠️**Zoom Download Failed**⚠️\n\n'
+                                f'**Name:** `{str(count).zfill(3)} {name1}`\n'
+                                f'**URL:** {url}\n\n'
+                                f'**Reason:** Cannot extract video\n\n'
+                                f'**Possible causes:**\n'
+                                f'• Password-protected recording\n'
+                                f'• Recording expired/deleted\n'
+                                f'• Need fresh Zoom cookies\n\n'
+                                f'**How to fix:**\n'
+                                f'1. Open link in browser\n'
+                                f'2. Enter passcode if asked\n'
+                                f'3. Export fresh Zoom cookies\n'
+                                f'4. Upload via /cookies command\n'
+                                f'5. Try downloading again',
+                                disable_web_page_preview=True
+                            )
+                        else:
+                            await bot.send_message(
+                                channel_id,
+                                f'⚠️**Zoom Download Failed**⚠️\n\n'
+                                f'**Name:** `{str(count).zfill(3)} {name1}`\n'
+                                f'**URL:** {url}\n\n'
+                                f'**Error:** <blockquote>{error_msg}</blockquote>',
+                                disable_web_page_preview=True
+                            )
+                    else:
+                        await bot.send_message(
+                            channel_id,
+                            f'⚠️**Downloading Failed**⚠️\n\n'
+                            f'**Name:** `{str(count).zfill(3)} {name1}`\n'
+                            f'**URL:** {url}\n\n'
+                            f'<blockquote><i><b>Failed Reason: {error_msg}</b></i></blockquote>',
+                            disable_web_page_preview=True
+                        )
+                except Exception as send_error:
+                    logging.error(f"❌ Failed to send error message: {str(send_error)}")
 
                 count += 1
                 failed_count += 1
-                continue    
-
-
+                continue
            
 
     except Exception as e:

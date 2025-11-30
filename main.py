@@ -80,72 +80,6 @@ image_urls = [
     # Add more image URLs as needed
 ]
 
-# ============= ZOOM HELPER FUNCTION (ADD THIS) =============
-async def download_zoom_video(url, name, raw_text2, cookies_file_path, m):
-    """
-    Downloads Zoom recordings with proper screen share detection.
-    Zoom recordings can have multiple streams:
-    - Format 0: Usually Active Speaker (webcam)
-    - Format 1: Usually Screen Share (whiteboard/presentation)
-    """
-    import subprocess
-    
-    try:
-        # First, list all available formats
-        list_cmd = f'yt-dlp --cookies {cookies_file_path} --list-formats "{url}"'
-        result = subprocess.run(list_cmd, shell=True, capture_output=True, text=True)
-        formats_list = result.stdout
-        
-        # Log for debugging
-        print(f"Available Zoom formats:\n{formats_list}")
-        
-        # Try downloading format 1 first (usually screen share)
-        cmd1 = f'yt-dlp --cookies {cookies_file_path} -f 1 "{url}" -o "{name}_screenshare.mp4"'
-        result1 = os.system(cmd1)
-        
-        # If format 1 exists and downloaded successfully
-        if os.path.exists(f"{name}_screenshare.mp4"):
-            # Check file size - screen share is usually larger
-            size1 = os.path.getsize(f"{name}_screenshare.mp4")
-            
-            # Also try format 0 to compare
-            cmd0 = f'yt-dlp --cookies {cookies_file_path} -f 0 "{url}" -o "{name}_speaker.mp4"'
-            os.system(cmd0)
-            
-            if os.path.exists(f"{name}_speaker.mp4"):
-                size0 = os.path.getsize(f"{name}_speaker.mp4")
-                
-                # Use the larger file (likely the screen share)
-                if size1 > size0:
-                    os.remove(f"{name}_speaker.mp4")
-                    os.rename(f"{name}_screenshare.mp4", f"{name}.mp4")
-                    print(f"✅ Using Format 1 (Screen Share) - {size1} bytes")
-                else:
-                    os.remove(f"{name}_screenshare.mp4")
-                    os.rename(f"{name}_speaker.mp4", f"{name}.mp4")
-                    print(f"✅ Using Format 0 (Active Speaker) - {size0} bytes")
-            else:
-                os.rename(f"{name}_screenshare.mp4", f"{name}.mp4")
-                print("✅ Using Format 1 only")
-            
-            return f"{name}.mp4"
-        
-        else:
-            # Fallback: Just try to get format 0
-            cmd = f'yt-dlp --cookies {cookies_file_path} -f 0 "{url}" -o "{name}.mp4"'
-            os.system(cmd)
-            
-            if os.path.exists(f"{name}.mp4"):
-                print("✅ Using Format 0 (fallback)")
-                return f"{name}.mp4"
-            else:
-                raise Exception("No formats could be downloaded")
-                
-    except Exception as e:
-        raise Exception(f"Zoom download failed: {str(e)}")
-# ============= END OF ZOOM HELPER FUNCTION =============
-
-
 @bot.on_message(filters.command("addauth") & filters.private)
 async def add_auth_user(client: Client, message: Message):
     if message.chat.id != OWNER:
@@ -974,9 +908,8 @@ async def txt_handler(bot: Client, m: Message):
                 cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
             # ========== ADD ZOOM SUPPORT HERE ==========
             elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                # Zoom will be handled separately in the try block below
-                cmd = None  # We'll handle this specially
-                # ========== END ZOOM SUPPORT ==========
+                cmd = f'yt-dlp --cookies {cookies_file_path} --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
+            # ========== END ZOOM SUPPORT ==========
             else:
                cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'    
             
@@ -1086,33 +1019,7 @@ async def txt_handler(bot: Client, m: Message):
                     except FloodWait as e:
                         await m.reply_text(str(e))
                         time.sleep(e.x)
-                        continue
-
-                    # ========== ZOOM SPECIAL HANDLING ==========
-                elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                    Show = f"<i><b>Zoom Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
-                    prog = await bot.send_message(channel_id, Show, disable_web_page_preview=True)
-                    
-                    try:
-                        filename = await download_zoom_video(url, name, raw_text2, cookies_file_path, m)
-                        await prog.delete(True)
-                        await helper.send_vid(bot, m, cc, filename, thumb, name, prog, channel_id)
-                        count += 1
-                        time.sleep(1)
-                    except Exception as zoom_error:
-                        await prog.delete(True)
-                        await bot.send_message(
-                            channel_id,
-                            f'⚠️**Zoom Download Failed**⚠️\n\n'
-                            f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                            f'**URL:** {url}\n\n'
-                            f'**Error:** <blockquote>{str(zoom_error)}</blockquote>\n\n'
-                            f'**Tip:** Update cookies or check if recording requires password',
-                            disable_web_page_preview=True
-                        )
-                        count += 1
-                    continue
-                # ========== END ZOOM SPECIAL HANDLING ==========    
+                        continue    
                     
                 elif 'encrypted.m' in url:    
                     Show = f"<i><b>Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
@@ -1337,10 +1244,8 @@ async def text_handler(bot: Client, m: Message):
                 cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
             # ========== ADD ZOOM SUPPORT HERE ==========
             elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                # Zoom will be handled separately below
-                cmd = None
-                # ========== END ZOOM SUPPORT ==========    
- 
+                cmd = f'yt-dlp --cookies {cookies_file_path} --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
+            # ========== END ZOOM SUPPORT ==========    
             else:
                 cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
 
@@ -1423,30 +1328,6 @@ async def text_handler(bot: Client, m: Message):
                         await m.reply_text(str(e))
                         time.sleep(e.x)
                         pass
-
-                    # ========== ZOOM SPECIAL HANDLING (DIRECT LINK) ==========
-                elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                    Show = f"**⚡Downloading Zoom Recording...⏳**\n" \
-                           f"🔗𝐋𝐢𝐧𝐤 » {url}\n" \
-                           f"✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ {CREDIT}"
-                    prog = await m.reply_text(Show, disable_web_page_preview=True)
-                    
-                    try:
-                        filename = await download_zoom_video(url, name, raw_text2, cookies_file_path, m)
-                        await prog.delete(True)
-                        await helper.send_vid(bot, m, cc, filename, thumb, name, prog, channel_id)
-                        time.sleep(1)
-                    except Exception as zoom_error:
-                        await prog.delete(True)
-                        await m.reply_text(
-                            f'⚠️**Zoom Download Failed**⚠️\n\n'
-                            f'**URL:** {url}\n\n'
-                            f'**Error:** <blockquote>{str(zoom_error)}</blockquote>\n\n'
-                            f'**Tip:** Update cookies via /cookies command',
-                            disable_web_page_preview=True
-                        )
-                    pass
-                # ========== END ZOOM SPECIAL HANDLING ==========
 
                 elif any(ext in url for ext in [".jpg", ".jpeg", ".png"]):
                     try:

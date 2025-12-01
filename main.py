@@ -80,45 +80,6 @@ image_urls = [
     # Add more image URLs as needed
 ]
 
-
-def sanitize_filename(filename):
-    """
-    Remove or replace invalid characters from filename
-    """
-    # Replace invalid characters
-    replacements = {
-        ':': ' -',   # Colon → dash with space
-        '/': '-',    # Slash → dash
-        '\\': '-',   # Backslash → dash
-        '*': '',     # Asterisk → remove
-        '?': '',     # Question mark → remove
-        '"': "'",    # Double quote → single quote
-        '<': '',     # Less than → remove
-        '>': '',     # Greater than → remove
-        '|': '-',    # Pipe → dash
-        '\n': ' ',   # Newline → space
-        '\r': ' ',   # Carriage return → space
-        '\t': ' ',   # Tab → space
-    }
-    
-    # Apply replacements
-    for old, new in replacements.items():
-        filename = filename.replace(old, new)
-    
-    # Remove multiple spaces
-    while '  ' in filename:
-        filename = filename.replace('  ', ' ')
-    
-    # Remove leading/trailing spaces and dots
-    filename = filename.strip('. ')
-    
-    # Limit length (255 chars max, leave room for extension)
-    if len(filename) > 200:
-        filename = filename[:200]
-    
-    return filename
-
-
 @bot.on_message(filters.command("addauth") & filters.private)
 async def add_auth_user(client: Client, message: Message):
     if message.chat.id != OWNER:
@@ -160,64 +121,33 @@ async def remove_auth_user(client: Client, message: Message):
 @bot.on_message(filters.command("cookies") & filters.private)
 async def cookies_handler(client: Client, m: Message):
     await m.reply_text(
-        "📁 **Upload Cookies File**\n\n"
-        "Upload cookies (.txt) for YouTube, Zoom & other platforms\n\n"
-        "**How to get cookies:**\n"
-        "1. Install 'Get cookies.txt LOCALLY' extension\n"
-        "2. Login to YouTube AND Zoom in browser\n"
-        "3. Click extension → Export 'All Sites'\n"
-        "4. Upload the .txt file here\n\n"
-        "**File:** `youtube_cookies.txt` (used for all platforms)",
+        "Please upload the cookies file (.txt format).",
         quote=True
     )
 
     try:
+        # Wait for the user to send the cookies file
         input_message: Message = await client.listen(m.chat.id)
 
+        # Validate the uploaded file
         if not input_message.document or not input_message.document.file_name.endswith(".txt"):
-            await m.reply_text("❌ Invalid file type. Please upload a .txt file.")
+            await m.reply_text("Invalid file type. Please upload a .txt file.")
             return
 
+        # Download the cookies file
         downloaded_path = await input_message.download()
 
+        # Read the content of the uploaded file
         with open(downloaded_path, "r") as uploaded_file:
             cookies_content = uploaded_file.read()
 
-        if len(cookies_content.strip()) < 10:
-            await m.reply_text("❌ Cookies file appears to be empty or invalid.")
-            os.remove(downloaded_path)
-            return
-
-        # Check for YouTube and Zoom cookies
-        has_youtube = ".youtube.com" in cookies_content or "youtube.com" in cookies_content
-        has_zoom = ".zoom.us" in cookies_content or "zoom.us" in cookies_content
-        
+        # Replace the content of the target cookies file
         with open(cookies_file_path, "w") as target_file:
             target_file.write(cookies_content)
 
-        cookie_lines = [line for line in cookies_content.split('\n') 
-                       if line.strip() and not line.startswith('#')]
-        
-        platforms = []
-        if has_youtube:
-            platforms.append("✅ YouTube")
-        else:
-            platforms.append("⚠️ YouTube (not found)")
-            
-        if has_zoom:
-            platforms.append("✅ Zoom")
-        else:
-            platforms.append("⚠️ Zoom (not found)")
-        
         await input_message.reply_text(
-            f"✅ **Cookies Updated Successfully**\n\n"
-            f"📂 Saved to: `{cookies_file_path}`\n"
-            f"🍪 Total cookies: {len(cookie_lines)}\n\n"
-            f"**Detected Platforms:**\n" + "\n".join(platforms) + "\n\n"
-            f"💡 If any platform shows 'not found', login to that site and re-upload cookies."
+            "✅ Cookies updated successfully.\n📂 Saved in `youtube_cookies.txt`."
         )
-        
-        os.remove(downloaded_path)
 
     except Exception as e:
         await m.reply_text(f"⚠️ An error occurred: {str(e)}")
@@ -407,25 +337,8 @@ async def txt_handler(bot: Client, m: Message):
             Vxy = links[i][1].replace("www.youtube-nocookie.com/embed", "youtu.be")
             url = "https://" + Vxy
 
-            # Clean the name first
-            name1_raw = links[i][0].replace("\t", "").replace("https", "").replace("http", "").strip()
-
-            # Sanitize the filename to remove invalid characters
-            name1 = sanitize_filename(name1_raw)
-
-            # Create final name (use CREDIT as default)
-            try:
-                if "," in raw_text3:
-                    name = f'{PRENAME} {name1[:60]}'
-                else:
-                    name = f'{name1[:60]} {CREDIT}'
-            except Exception:
-                name = f'{name1[:60]} {CREDIT}'
-
-            # Final sanitization (in case PRENAME has invalid chars)
-            name = sanitize_filename(name)
-
-            logging.info(f"📝 Sanitized filename: {name}")
+            name1 = links[i][0].replace("\t", "").replace(":", "").replace("/", "").replace("+", "").replace("#", "").replace("|", "").replace("@", "").replace("*", "").replace(".", "").replace("https", "")
+            name = f'{name1[:60]} {CREDIT}'
 
             if "youtube.com" in url or "youtu.be" in url:
                 prog = await m.reply_text(f"<i><b>Audio Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>")
@@ -875,25 +788,11 @@ async def txt_handler(bot: Client, m: Message):
             url = "https://" + Vxy
             link0 = "https://" + Vxy
 
-            # Clean the name first (preserve some bracket replacements)
-            name1_raw = links[i][0].replace("(", "[").replace(")", "]").replace("_", "").replace("\t", "").replace("https", "").replace("http", "").strip()
-
-            # Sanitize the filename to remove invalid characters
-            name1 = sanitize_filename(name1_raw)
-
-            # Create final name
-            try:
-                if "," in raw_text3:
-                     name = f'{PRENAME} {name1[:60]}'
-                else:
-                     name = f'{name1[:60]}'
-            except Exception:
-                name = f'{name1[:60]}'
-
-            # Final sanitization (in case PRENAME has invalid chars)
-            name = sanitize_filename(name)
-
-            logging.info(f"📝 Sanitized filename: {name}")
+            name1 = links[i][0].replace("(", "[").replace(")", "]").replace("_", "").replace("\t", "").replace(":", "").replace("/", "").replace("+", "").replace("#", "").replace("|", "").replace("@", "").replace("*", "").replace(".", "").replace("https", "").replace("http", "").strip()
+            if "," in raw_text3:
+                 name = f'{PRENAME} {name1[:60]}'
+            else:
+                 name = f'{name1[:60]}'
             
             if "visionias" in url:
                 async with ClientSession() as session:
@@ -962,60 +861,15 @@ async def txt_handler(bot: Client, m: Message):
                 ytf = f"b[height<={raw_text2}]/bv[height<={raw_text2}]+ba/b/bv+ba"
            
             # ----------- 5. DOWNLOAD COMMANDS -----------
-            # Final filename sanitization before download
-            name = sanitize_filename(name)
-            logging.info(f"📝 Final filename: {name}")
-
             if "jw-prod" in url:
-                cmd = f'yt-dlp --no-check-certificate --embed-metadata -o "{name}.mp4" "{url}"'
-
+                cmd = f'yt-dlp -o "{name}.mp4" "{url}"'
             elif "webvideos.classplusapp." in url:
-                cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
-
+                cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
             elif "youtube.com" in url or "youtu.be" in url:
-                cmd = (
-                    f'yt-dlp '
-                    f'--cookies {cookies_file_path} '
-                    f'--embed-metadata '
-                    f'--no-check-certificate '
-                    f'--restrict-filenames '
-                    f'-f "{ytf}" '
-                    f'"{url}" '
-                    f'-o "{name}.mp4"'
-                )
-                logging.info(f"🎥 Downloading YouTube video with cookies")
-
-            # Zoom recordings - prioritize screen share (larger resolution)
-            elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                # Zoom has multiple streams - prioritize screen share view
-                zoom_format = (
-                    "best[format_id~='^\\d+$'][height>=720]/"
-                    "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"  # Screen share HD
-                    "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"   # Screen share 720p
-                    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"                # Best video
-                    "best[ext=mp4]/best"                                     # Fallback
-                )
-                
-                cmd = (
-                    f'yt-dlp '
-                    f'--cookies {cookies_file_path} '
-                    f'--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" '
-                    f'--referer "https://zoom.us/" '
-                    f'--add-header "Accept: text/html,application/xhtml+xml" '
-                    f'--retries 10 '
-                    f'--fragment-retries 10 '
-                    f'--socket-timeout 30 '
-                    f'--no-part '
-                    f'-f "{zoom_format}" '
-                    f'--merge-output-format mp4 '
-                    f'"{url}" '
-                    f'-o "{name}.mp4"'
-                )
-                logging.info(f"🎥 Downloading Zoom - prioritizing screen share view")
-
+                cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
             else:
-                cmd = f'yt-dlp --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'    
-            
+                cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
+
 
             try:
                 cc = f'[🎥]Vid Id : {str(count).zfill(3)}\n**Video Title :** `{name1} [{res}p].mkv`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
@@ -1157,85 +1011,10 @@ async def txt_handler(bot: Client, m: Message):
                     time.sleep(1)
                 
             except Exception as e:
-                error_msg = str(e)
-                logging.error(f"❌ Download failed: {error_msg}")
-
-                try:
-                    # Check for filename issues
-                    if "No such file or directory" in error_msg or "could not convert string to float" in error_msg:
-                        await bot.send_message(
-                            channel_id,
-                            f'⚠️**Download Failed - Filename Issue**⚠️\n\n'
-                            f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                            f'**URL:** {url}\n\n'
-                            f'**Reason:** Invalid characters in filename\n'
-                            f'**Bot tried to fix it but download still failed**\n\n'
-                            f'**Please check the video name for special characters**',
-                            disable_web_page_preview=True
-                        )
-                    
-                    # Zoom-specific errors
-                    elif "zoom.us" in url:
-                        if "Unable to extract" in error_msg:
-                            await bot.send_message(
-                                channel_id,
-                                f'⚠️**Zoom Download Failed**⚠️\n\n'
-                                f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                                f'**URL:** {url}\n\n'
-                                f'**Reason:** Cannot extract video\n\n'
-                                f'**Possible causes:**\n'
-                                f'• Password-protected recording\n'
-                                f'• Recording expired/deleted\n'
-                                f'• Need fresh Zoom cookies\n\n'
-                                f'**How to fix:**\n'
-                                f'1. Open link in browser\n'
-                                f'2. Enter passcode if asked\n'
-                                f'3. Export fresh Zoom cookies\n'
-                                f'4. Upload via /cookies command\n'
-                                f'5. Try again',
-                                disable_web_page_preview=True
-                            )
-                        elif "401" in error_msg or "403" in error_msg:
-                            await bot.send_message(
-                                channel_id,
-                                f'⚠️**Zoom Download Failed - Authentication**⚠️\n\n'
-                                f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                                f'**URL:** {url}\n\n'
-                                f'**Reason:** Zoom requires login\n\n'
-                                f'**Fix:**\n'
-                                f'1. Login to Zoom in browser\n'
-                                f'2. Export cookies\n'
-                                f'3. Upload via /cookies command',
-                                disable_web_page_preview=True
-                            )
-                        else:
-                            await bot.send_message(
-                                channel_id,
-                                f'⚠️**Zoom Download Failed**⚠️\n\n'
-                                f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                                f'**URL:** {url}\n\n'
-                                f'**Error:** <blockquote>{error_msg}</blockquote>',
-                                disable_web_page_preview=True
-                            )
-                    
-                    # General download failures
-                    else:
-                        await bot.send_message(
-                            channel_id,
-                            f'⚠️**Downloading Failed**⚠️\n\n'
-                            f'**Name:** `{str(count).zfill(3)} {name1}`\n'
-                            f'**URL:** {url}\n\n'
-                            f'<blockquote><i><b>Failed Reason: {error_msg}</b></i></blockquote>',
-                            disable_web_page_preview=True
-                        )
-                
-                except Exception as send_error:
-                    logging.error(f"❌ Failed to send error message: {str(send_error)}")
-                
+                await bot.send_message(channel_id, f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {url}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>', disable_web_page_preview=True)
                 count += 1
                 failed_count += 1
                 continue
-           
 
     except Exception as e:
         await m.reply_text(e)
@@ -1368,59 +1147,14 @@ async def text_handler(bot: Client, m: Message):
             else:
                 ytf = f"b[height<={raw_text2}]/bv[height<={raw_text2}]+ba/b/bv+ba"
            
-            # Final filename sanitization before download
-            name = sanitize_filename(name)
-            logging.info(f"📝 Final filename: {name}")
-
             if "jw-prod" in url:
-                cmd = f'yt-dlp --no-check-certificate --embed-metadata -o "{name}.mp4" "{url}"'
-
+                cmd = f'yt-dlp -o "{name}.mp4" "{url}"'
             elif "webvideos.classplusapp." in url:
-                cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
-
+               cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
             elif "youtube.com" in url or "youtu.be" in url:
-                cmd = (
-                    f'yt-dlp '
-                    f'--cookies {cookies_file_path} '
-                    f'--embed-metadata '
-                    f'--no-check-certificate '
-                    f'--restrict-filenames '
-                    f'-f "{ytf}" '
-                    f'"{url}" '
-                    f'-o "{name}.mp4"'
-                )
-                logging.info(f"🎥 Downloading YouTube video with cookies")
-
-            # Zoom recordings - prioritize screen share (larger resolution)
-            elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
-                # Zoom has multiple streams - prioritize screen share view
-                zoom_format = (
-                    "best[format_id~='^\\d+$'][height>=720]/"
-                    "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"  # Screen share HD
-                    "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"   # Screen share 720p
-                    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"                # Best video
-                    "best[ext=mp4]/best"                                     # Fallback
-                )
-                
-                cmd = (
-                    f'yt-dlp '
-                    f'--cookies {cookies_file_path} '
-                    f'--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" '
-                    f'--referer "https://zoom.us/" '
-                    f'--add-header "Accept: text/html,application/xhtml+xml" '
-                    f'--retries 10 '
-                    f'--fragment-retries 10 '
-                    f'--socket-timeout 30 '
-                    f'--no-part '
-                    f'-f "{zoom_format}" '
-                    f'--merge-output-format mp4 '
-                    f'"{url}" '
-                    f'-o "{name}.mp4"'
-                )
-                logging.info(f"🎥 Downloading Zoom - prioritizing screen share view")
-
+                cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
             else:
-                cmd = f'yt-dlp --embed-metadata --no-check-certificate -f "{ytf}" "{url}" -o "{name}.mp4"'
+                cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
 
             try:
                 cc = f'🎞️𝐓𝐢𝐭𝐥𝐞 » `{name} [{res}].mp4`\n🔗𝐋𝐢𝐧𝐤 » <a href="{link}">__**CLICK HERE**__</a>\n\n🌟𝐄𝐱𝐭𝐫𝐚𝐜𝐭𝐞𝐝 𝐁𝐲 » `{CREDIT}`'

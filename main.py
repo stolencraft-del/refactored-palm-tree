@@ -989,6 +989,7 @@ async def txt_handler(bot: Client, m: Message):
             elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
                 # Zoom has multiple streams - prioritize screen share view
                 zoom_format = (
+                    "best[format_id~='^\\d+$'][height>=720]/"
                     "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"  # Screen share HD
                     "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"   # Screen share 720p
                     "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"                # Best video
@@ -1001,8 +1002,10 @@ async def txt_handler(bot: Client, m: Message):
                     f'--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" '
                     f'--referer "https://zoom.us/" '
                     f'--add-header "Accept: text/html,application/xhtml+xml" '
-                    f'--retries 5 '
-                    f'--fragment-retries 5 '
+                    f'--retries 10 '
+                    f'--fragment-retries 10 '
+                    f'--socket-timeout 30 '
+                    f'--no-part '
                     f'-f "{zoom_format}" '
                     f'--merge-output-format mp4 '
                     f'"{url}" '
@@ -1392,6 +1395,7 @@ async def text_handler(bot: Client, m: Message):
             elif "zoom.us/rec/" in url or "zoom.us/share/" in url or "us02web.zoom.us" in url:
                 # Zoom has multiple streams - prioritize screen share view
                 zoom_format = (
+                    "best[format_id~='^\\d+$'][height>=720]/"
                     "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"  # Screen share HD
                     "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"   # Screen share 720p
                     "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"                # Best video
@@ -1404,8 +1408,10 @@ async def text_handler(bot: Client, m: Message):
                     f'--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" '
                     f'--referer "https://zoom.us/" '
                     f'--add-header "Accept: text/html,application/xhtml+xml" '
-                    f'--retries 5 '
-                    f'--fragment-retries 5 '
+                    f'--retries 10 '
+                    f'--fragment-retries 10 '
+                    f'--socket-timeout 30 '
+                    f'--no-part '
                     f'-f "{zoom_format}" '
                     f'--merge-output-format mp4 '
                     f'"{url}" '
